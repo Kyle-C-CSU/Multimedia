@@ -13,6 +13,13 @@ import copy
 def sort_dict(dictionary):
     return {k: v for k, v in sorted(dictionary.items(),reverse=True, key=lambda item: item[1])}
 
+#Sort Tuple by 2nd value 
+def Sort_Tuple(tup): 
+    # reverse = None (Sorts in Ascending order) 
+    # key is set to sort using second element of 
+    # sublist lambda has been used 
+    tup.sort(key = lambda x: x[1],reverse=True) 
+    return tup 
 #------------------------------------------------------------------------------------------
 #                                           Read image 
 #------------------------------------------------------------------------------------------
@@ -58,34 +65,11 @@ def getPrk(img,freq):
             stage, color, prk, bits
 '''
 #------------------------------------------------------------------------------------------
-def getStages(prk):
-    prob_dens = list(prk.values())
-    size = len(prob_dens)
-    stages = {}
-    stages = copy.deepcopy(stages)
-    stages[0] = prob_dens
-    #maybe have instances of lists to save each iteration
-    for i in range(1,size):
-        # print('#------------------------------------------------------------------------------------------')
-        if len(prob_dens)>2:
-            #make deep copy so dictionary dosent have same reference for r
-            stages = copy.deepcopy(stages)
-            tail = prob_dens.pop() + prob_dens.pop() 
-            prob_dens.append(tail)
-            prob_dens.sort(reverse=True)
-            stages[i]= prob_dens
-    #         for j in range(0,4):
-    #             if(j <=1):
-    #                 print(j,end='')
-    #                 print(':',r[j])
-    #             if (j > 2):
-    #                 print(' .','\n','.','\n','.','\n')
-    #                 print(len(r)-2,':',r[len(r)-2])
-    #                 print(len(r)-1,':',r[len(r)-1])
-
-    
-    # print(stages)
-    return stages
+def corcoranStage(prk):
+    corcoranS = []
+    for i in prk:
+        corcoranS.append((i,prk[i]))
+    return corcoranS
 
 #------------------------------------------------------------------------------------------
 #                                       Assign bits 
@@ -95,38 +79,80 @@ Must reuse the same binary value for the same color
 Edge case: could have same prk value but be different color must acount for that 
 '''
 #------------------------------------------------------------------------------------------
-#might need to create a class for tuples to hold:
-#   color, index, prk, bit/s
+def lowestBitDepthVal(used_bits):
+    for i in range(255):
+        if bin(i)[2:] not in used_bits:
+            return bin(i)[2:]
+    #error 
+    return -1
 
+def getBits(stages):
+    used_bits = []
+    bits = []
+    for element in stages:
+        new_bit = lowestBitDepthVal(used_bits)
+        used_bits.append(new_bit)
+        bits.append((element[0],element[1],new_bit))    
+    return bits
+#------------------------------------------------------------------------------------------
+#                                        MAP
+#------------------------------------------------------------------------------------------
+def mkDic(bits):
+    dic = {}
+    for i in bits:
+        dic[i[0]]=i[2]
+    return dic
 
-#checkColorAssigned(bits,color)
-#assignPrevBit(bits,color)
-#assignNewBit(bits, color)
+def mapBits(dic,img):
+    compressed=img.copy()
+    row,col = compressed.shape
+    for i in range(row):
+        for j in range(col):
+            compressed[i][j]=int(dic[img[i][j]])
+    return compressed
+    
+#------------------------------------------------------------------------------------------
+#                                        Lavg
+#------------------------------------------------------------------------------------------
+def getBitDepth(bits):
+    bd = []
+    for i in bits:
+        bd.append((i[0],i[1],len(i[2])))
+    return bd
 
-# def getBits(stages):
-#     #color: bit/s 
-#     bits = {}
-
-#     for keys in reversed(stages):
-#         bits=copy.deepcopy(bits)
-#         temp_bits = []
-#         for i in stages[keys]:
-#             if checkColorAssigned(bits,i):
-#                 prev_bit = assignPrevBit(bits,i)
-#                 temp_bits.append(prev_bit)   
-#             else:
-#                 new_bit = assignNewBit(bits,i)
-#                 temp_bits.append()
-#         bits[stages[key]]=temp_bits
+def Lavg(bd):
+    total = 0
+    for i in bd:
+        total += i[1]*i[2]
+    return total
+#------------------------------------------------------------------------------------------
+#                               Convert Tuples to Strings
+#------------------------------------------------------------------------------------------
+def getStrings(keys):
+    keyList = []
+    for i in keys:
+        entree = str(i)+':\t'+str(keys[i])
+        keyList.append(entree)
+    return keyList
         
 #------------------------------------------------------------------------------------------
 #                                        MAIN
 #------------------------------------------------------------------------------------------
 img = readImg()
+# M,N = img.shape
+# MN = M*N
 freq = getFreq(img)
 prk = getPrk(img,freq)
-stages = getStages(prk)
-print(stages)    
-
-# cv2.imshow("original",img)
-# cv2.waitKey(0)
+cs = corcoranStage(prk)
+bits = getBits(cs)
+keys = mkDic(bits)
+compressed_img = mapBits(keys,img)
+lavg = Lavg(getBitDepth(bits))
+print('Lavg: ', lavg)
+print('Compression Ratio: ', 8/lavg)
+with open('keys.txt','w') as file:
+    for line in getStrings(keys):
+        file.write(str(line))
+        file.write('\n')
+cv2.imwrite("original.png",img)
+cv2.imwrite('CorcoranCodingImage.png',compressed_img)
